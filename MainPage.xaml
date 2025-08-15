@@ -3,16 +3,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:CallREC_Scribe.ViewModels"
              xmlns:models="clr-namespace:CallREC_Scribe.Models"
+             xmlns:converters="clr-namespace:CallREC_Scribe.Converters"
              x:DataType="viewmodels:MainPageViewModel"
              x:Class="CallREC_Scribe.MainPage"
              Title="通话录音转录工具">
 
+    <ContentPage.Resources>
+        <converters:TranscriptionStatusConverter x:Key="TranscriptionStatusConv" />
+    </ContentPage.Resources>
+
     <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Padding="10" RowSpacing="10">
 
         <!-- 语音识别配置按钮 -->
-        <Button Grid.Row="0"
-                Text="语音识别配置"
-                Command="{Binding ConfigureApiCommand}" />
+        <HorizontalStackLayout Grid.Row="0" Spacing="10">
+            <Button Text="语音识别配置" Command="{Binding ConfigureApiCommand}" HorizontalOptions="FillAndExpand"/>
+            <Button Text="文件名解析配置" Command="{Binding ConfigureParsingCommand}" HorizontalOptions="FillAndExpand"/>
+        </HorizontalStackLayout>
 
         <!-- 语音保存位置 -->
         <Grid Grid.Row="1" ColumnDefinitions="*, Auto" ColumnSpacing="10">
@@ -45,7 +51,7 @@
                         <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalOptions="Center"/>
                         <Label Grid.Column="1" Text="{Binding RecordingDate, StringFormat='{0:yyyy-MM-dd HH:mm}'}" VerticalOptions="Center"/>
                         <Label Grid.Column="2" Text="{Binding PhoneNumber}" VerticalOptions="Center"/>
-                        <Label Grid.Column="3" Text="{Binding TranscriptionPreview}" LineBreakMode="TailTruncation" VerticalOptions="Center"/>
+                        <Label Grid.Column="3" Text="{Binding TranscriptionPreview, Converter={StaticResource TranscriptionStatusConv}}" LineBreakMode="TailTruncation" VerticalOptions="Center"/>
                     </Grid>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="CallREC_Scribe.Views.ParsingConfigPopup"
+             Color="Transparent">
+
+    <Frame VerticalOptions="Center" HorizontalOptions="Center" CornerRadius="10" Padding="20" HasShadow="True">
+        <VerticalStackLayout Spacing="15" WidthRequest="300">
+            <Label Text="文件名解析配置" FontSize="Large" FontAttributes="Bold" HorizontalTextAlignment="Center"/>
+
+            <Label Text="选择解析模式:"/>
+            <Picker Title="解析模式" SelectedItem="{Binding SelectedStrategy}">
+                <Picker.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>Standard</x:String>
+                        <x:String>CustomRegex</x:String>
+                    </x:Array>
+                </Picker.ItemsSource>
+            </Picker>
+
+            <!-- 只有当选择 CustomRegex 时才显示 -->
+            <VerticalStackLayout IsVisible="{Binding IsCustomRegexSelected}" Spacing="5">
+                <Label Text="自定义正则表达式:" FontAttributes="Bold"/>
+                <Editor Text="{Binding CustomRegexPattern}" Placeholder="输入Regex表达式" HeightRequest="100" AutoSize="Disabled"/>
+                <Label Text="必须包含命名捕获组: (?&lt;phone&gt;...) 和 (?&lt;date&gt;...)，可选 (?&lt;name&gt;...)" FontSize="Micro" TextColor="Gray"/>
+
+            </VerticalStackLayout>
+
+            <HorizontalStackLayout Spacing="10" HorizontalOptions="End">
+                <Button Text="取消" Command="{Binding CancelCommand}"/>
+                <Button Text="保存" Command="{Binding SaveCommand}" FontAttributes="Bold"/>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </Frame>
+</toolkit:Popup>
