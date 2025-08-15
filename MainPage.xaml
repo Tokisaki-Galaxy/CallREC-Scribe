@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:CallREC_Scribe.ViewModels"
+             xmlns:models="clr-namespace:CallREC_Scribe.Models"
+             x:DataType="viewmodels:MainPageViewModel"
+             x:Class="CallREC_Scribe.MainPage"
+             Title="通话录音转录工具">
+
+    <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Padding="10" RowSpacing="10">
+
+        <!-- 语音识别配置按钮 -->
+        <Button Grid.Row="0"
+                Text="语音识别配置"
+                Command="{Binding ConfigureApiCommand}" />
+
+        <!-- 语音保存位置 -->
+        <Grid Grid.Row="1" ColumnDefinitions="*, Auto" ColumnSpacing="10">
+            <Frame Padding="10,0" CornerRadius="5" BorderColor="LightGray">
+                <Label Text="{Binding RecordingsFolder}" VerticalOptions="Center"/>
+            </Frame>
+            <Button Grid.Column="1" Text="浏览..." Command="{Binding BrowseFolderCommand}"/>
+        </Grid>
+
+        <!-- 转译和选择按钮 -->
+        <HorizontalStackLayout Grid.Row="2" Spacing="10">
+            <Button Text="转译选中" Command="{Binding TranscribeSelectedCommand}" HorizontalOptions="FillAndExpand" />
+            <Button Text="全选" Command="{Binding SelectAllCommand}" />
+            <Button Text="反选" Command="{Binding InvertSelectionCommand}" />
+        </HorizontalStackLayout>
+
+        <!-- 录音文件表格 -->
+        <CollectionView Grid.Row="3" ItemsSource="{Binding RecordingFiles}"
+                        SelectionMode="None">
+            <CollectionView.Header>
+                <Grid ColumnDefinitions="Auto, *, *, *" Padding="5, 10" BackgroundColor="LightGray">
+                    <Label Grid.Column="1" Text="日期" FontAttributes="Bold"/>
+                    <Label Grid.Column="2" Text="手机号" FontAttributes="Bold"/>
+                    <Label Grid.Column="3" Text="转录预览" FontAttributes="Bold"/>
+                </Grid>
+            </CollectionView.Header>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="models:RecordingFile">
+                    <Grid ColumnDefinitions="Auto, *, *, *" Padding="5" ColumnSpacing="5">
+                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalOptions="Center"/>
+                        <Label Grid.Column="1" Text="{Binding RecordingDate, StringFormat='{0:yyyy-MM-dd HH:mm}'}" VerticalOptions="Center"/>
+                        <Label Grid.Column="2" Text="{Binding PhoneNumber}" VerticalOptions="Center"/>
+                        <Label Grid.Column="3" Text="{Binding TranscriptionPreview}" LineBreakMode="TailTruncation" VerticalOptions="Center"/>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- 加载指示器 -->
+        <ActivityIndicator Grid.Row="0" Grid.RowSpan="5"
+                           IsRunning="{Binding IsBusy}"
+                           IsVisible="{Binding IsBusy}"
+                           HorizontalOptions="Center" VerticalOptions="Center"/>
+
+    </Grid>
+</ContentPage>
