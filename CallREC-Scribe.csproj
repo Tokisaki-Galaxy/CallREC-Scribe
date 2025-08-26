@@ -111,4 +111,10 @@
 	  </MauiXaml>
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0-android'">
+	  <PackageReference Include="Xamarin.FFmpegKit.FullGpl.Android">
+	    <Version>4.5.1</Version>
+	  </PackageReference>
+	</ItemGroup>
+
 </Project>
