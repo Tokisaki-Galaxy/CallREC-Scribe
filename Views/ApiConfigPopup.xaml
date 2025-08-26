@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="CallREC_Scribe.Views.ApiConfigPopup"
+             Color="Transparent">
+
+    <Frame VerticalOptions="Center" HorizontalOptions="Center" CornerRadius="10" Padding="20" HasShadow="True">
+        <VerticalStackLayout Spacing="15" WidthRequest="300">
+            <Label Text="语音识别配置" FontSize="Large" FontAttributes="Bold" HorizontalTextAlignment="Center"/>
+
+            <Label Text="Tencent Cloud Secret ID:"/>
+            <Entry Text="{Binding SecretId}" 
+                   Placeholder="请输入 Secret ID" />
+
+            <Label Text="Tencent Cloud Secret Key:"/>
+            <Entry Text="{Binding SecretKey}" 
+                   Placeholder="请输入 Secret Key" />
+
+            <Label Text="选择识别引擎类型:"/>
+            <Picker Title="引擎类型（通话录音一般是8k，别选错）" SelectedItem="{Binding SelectedEngineModel}">
+                <Picker.ItemsSource>
+                    <x:Array Type="{x:Type x:String}">
+                        <x:String>8k_zh</x:String>
+                        <x:String>16k_zh</x:String>
+                        <x:String>8k_en</x:String>
+                        <x:String>16k_en</x:String>
+                        <x:String>16k_ja</x:String>
+                        <x:String>16k_zh-PY</x:String>
+                    </x:Array>
+                </Picker.ItemsSource>
+            </Picker>
+
+            <HorizontalStackLayout Spacing="10" HorizontalOptions="End">
+                <Button Text="取消" Command="{Binding CancelCommand}"/>
+                <Button Text="保存" Command="{Binding SaveCommand}" FontAttributes="Bold"/>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </Frame>
+</toolkit:Popup>

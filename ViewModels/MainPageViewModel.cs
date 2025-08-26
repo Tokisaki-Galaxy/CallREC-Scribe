@@ -24,6 +24,7 @@ namespace CallREC_Scribe.ViewModels
         private readonly FilenameParsingService _parsingService;
         private readonly IServiceProvider _serviceProvider;
         private readonly IPopupService _popupService;
+        private readonly ExportService _exportService;
 
         [ObservableProperty]
         private string _recordingsFolder;
@@ -35,13 +36,14 @@ namespace CallREC_Scribe.ViewModels
 
         public MainPageViewModel(
             DatabaseService dbService, TencentAsrService asrService,
-            FilenameParsingService parsingService, IServiceProvider serviceProvider, IPopupService popupService)
+            FilenameParsingService parsingService, IServiceProvider serviceProvider, IPopupService popupService, ExportService exportService)
         {
             _dbService = dbService;
             _asrService = asrService;
             _parsingService = parsingService;
             _serviceProvider = serviceProvider;
             _popupService = popupService;
+            _exportService = exportService;
 
             // 从本地配置加载保存的路径和API密钥
             RecordingsFolder = Preferences.Get("RecordingsFolder", "请选择文件夹...");
@@ -116,22 +118,11 @@ namespace CallREC_Scribe.ViewModels
         [RelayCommand]
         private async Task ConfigureApiAsync()
         {
-            string id = await App.Current.MainPage.DisplayPromptAsync("腾讯云配置", "请输入 Secret ID:", initialValue: Preferences.Get("TencentSecretId", ""));
-            if (id != null)
-            {
-                Preferences.Set("TencentSecretId", id);
-            }
+            // 使用 IServiceProvider 来获取我们刚刚创建的弹窗实例
+            var popup = _serviceProvider.GetRequiredService<ApiConfigPopup>();
 
-            string key = await App.Current.MainPage.DisplayPromptAsync("腾讯云配置", "请输入 Secret Key:", initialValue: Preferences.Get("TencentSecretKey", ""));
-            if (key != null)
-            {
-                Preferences.Set("TencentSecretKey", key);
-            }
-
-            if (id != null && key != null)
-            {
-                await App.Current.MainPage.DisplayAlert("成功", "API密钥已保存。", "好的");
-            }
+            // 显示弹窗
+            await App.Current.MainPage.ShowPopupAsync(popup);
         }
 
         [RelayCommand]
@@ -229,69 +220,82 @@ namespace CallREC_Scribe.ViewModels
             if (IsBusy) return;
 
             IsBusy = true;
-            // 注意：我们不再在这里清空列表，以防加载中途失败导致白屏
             try
             {
+                var filesOnDisk = new HashSet<string>();
                 if (Directory.Exists(RecordingsFolder))
                 {
-                    // --- 修改点 1: 创建一个临时的 List 来收集文件 ---
-                    // 我们不再直接向 ObservableCollection 中添加，以避免不必要的UI更新
-                    var loadedFiles = new List<RecordingFile>();
-
-
                     var allowedExtensions = new[] { ".mp3", ".m4a" };
                     var files = Directory.EnumerateFiles(RecordingsFolder)
-                        .Where(file => allowedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()))
-                        .ToList();
+                        .Where(file => allowedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()));
+                    filesOnDisk = new HashSet<string>(files);
+                }
 
-                    foreach (var file in files)
+                // --- 获取数据库中所有已知的录音记录 ---
+                var recordingsInDb = await _dbService.GetAllRecordingsAsync();
+
+                // --- 创建一个临时的列表来存放最终要显示的所有记录 ---
+                var allRecordingsToShow = new List<RecordingFile>();
+
+                // --- 优先处理数据库中的记录，并验证其文件是否存在 ---
+                foreach (var dbRecord in recordingsInDb)
+                {
+                    if (filesOnDisk.Contains(dbRecord.FilePath))
                     {
-                        var parsingResult = _parsingService.Parse(file);
-
-                        var recording = new RecordingFile();
-                        if (parsingResult.Success)
-                        {
-                            recording.PhoneNumber = parsingResult.PhoneNumber;
-                            recording.RecordingDate = parsingResult.RecordingDate;
-                            if (!string.IsNullOrEmpty(parsingResult.ContactName))
-                            {
-                                recording.PhoneNumber = $"{parsingResult.ContactName} ({parsingResult.PhoneNumber})";
-                            }
-                        }
-                        else
-                        {
-                            recording.PhoneNumber = Path.GetFileNameWithoutExtension(file);
-                            recording.RecordingDate = File.GetLastWriteTime(file);
-                        }
-
-                        recording.FilePath = file;
-                        recording.TranscriptionPreview = string.Empty;
-
-                        var saved = await _dbService.GetRecordingAsync(file);
-                        if (saved != null && !string.IsNullOrEmpty(saved.TranscriptionPreview))
-                        {
-                            recording.TranscriptionPreview = saved.TranscriptionPreview;
-                        }
-
-                        // --- 修改点 2: 将新对象添加到临时 List 中 ---
-                        loadedFiles.Add(recording);
+                        // 情况 1: 文件正常存在
+                        // 数据库记录有效，直接使用。
+                        allRecordingsToShow.Add(dbRecord);
+                        // 从待处理的文件列表中移除，剩下的就是“新文件”。
+                        filesOnDisk.Remove(dbRecord.FilePath);
                     }
-
-                    // --- 修改点 3: 在所有文件加载完毕后，对临时 List 进行排序 ---
-                    // 使用 LINQ 的 OrderByDescending 方法按日期倒序排列
-                    var sortedFiles = loadedFiles.OrderByDescending(f => f.RecordingDate).ToList();
-
-                    // --- 修改点 4: 清空并一次性填充 UI 绑定的 ObservableCollection ---
-                    RecordingFiles.Clear();
-                    foreach (var file in sortedFiles)
+                    else
                     {
-                        RecordingFiles.Add(file);
+                        // 情况 2: 文件已被删除
+                        // 修改显示内容，然后添加到最终列表。
+                        dbRecord.PhoneNumber = $"(已删除) {dbRecord.PhoneNumber}";
+                        allRecordingsToShow.Add(dbRecord);
                     }
                 }
-                else
+
+                // --- 处理文件系统中剩余的“新文件” (即不在数据库中的文件) ---
+                foreach (var newFilePath in filesOnDisk)
                 {
-                    // 如果文件夹不存在，也要确保列表是空的
-                    RecordingFiles.Clear();
+                    // 情况 3: 新文件
+                    var parsingResult = _parsingService.Parse(newFilePath);
+                    var newRecording = new RecordingFile();
+
+                    if (parsingResult.Success)
+                    {
+                        newRecording.PhoneNumber = parsingResult.PhoneNumber;
+                        newRecording.RecordingDate = parsingResult.RecordingDate;
+                        if (!string.IsNullOrEmpty(parsingResult.ContactName))
+                        {
+                            newRecording.PhoneNumber = $"{parsingResult.ContactName} ({parsingResult.PhoneNumber})";
+                        }
+                    }
+                    else
+                    {
+                        // 解析失败的处理
+                        newRecording.PhoneNumber = Path.GetFileNameWithoutExtension(newFilePath);
+                        newRecording.RecordingDate = File.GetLastWriteTime(newFilePath);
+                    }
+
+                    newRecording.FilePath = newFilePath;
+                    newRecording.TranscriptionPreview = string.Empty; // 新文件没有转录
+
+                    allRecordingsToShow.Add(newRecording);
+                    // 关键：将新发现的文件存入数据库，以便下次加载时能识别
+                    await _dbService.SaveRecordingAsync(newRecording);
+                }
+
+                // --- 对最终的完整列表进行排序，并一次性更新到UI ---
+                // 先排序后更新
+                var sortedFiles = allRecordingsToShow.OrderByDescending(f => f.RecordingDate).ToList();
+
+                RecordingFiles.Clear();
+                foreach (var file in sortedFiles)
+                {
+                    RecordingFiles.Add(file);
                 }
             }
             catch (Exception ex)
@@ -312,6 +316,121 @@ namespace CallREC_Scribe.ViewModels
                 return result;
             }
             return DateTime.MinValue;
+        }
+
+        [RelayCommand]
+        private async Task ExportAsync()
+        {
+            var selectedFiles = RecordingFiles.Where(f => f.IsSelected).ToList();
+            if (selectedFiles.Count == 0)
+            {
+                await App.Current.MainPage.DisplayAlert("提示", "请至少选择一个文件进行导出。", "好的");
+                return;
+            }
+
+            IsBusy = true;
+            try
+            {
+                // 1. 调用服务生成文件，并获取临时文件路径
+                string filePath = await _exportService.ExportFilesAsync(selectedFiles);
+
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    await App.Current.MainPage.DisplayAlert("错误", "创建导出文件失败。", "好的");
+                    return;
+                }
+
+                // 2. 使用 MAUI Essentials 的 Share 功能将文件分享/保存
+                await Share.Default.RequestAsync(new ShareFileRequest
+                {
+                    Title = "导出录音转录",
+                    File = new ShareFile(filePath)
+                });
+            }
+            catch (Exception ex)
+            {
+                await App.Current.MainPage.DisplayAlert("导出失败", $"发生错误: {ex.Message}", "好的");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        [RelayCommand]
+        private async Task DeleteSelectedAsync()
+        {
+            var selectedFiles = RecordingFiles.Where(f => f.IsSelected).ToList();
+            if (selectedFiles.Count == 0)
+            {
+                await App.Current.MainPage.DisplayAlert("提示", "请至少选择一个条目进行删除。", "好的");
+                return;
+            }
+
+            // --- 核心修改：使用 DisplayActionSheet 来提供多个选项 ---
+
+            // 1. 定义我们希望用户看到的选项文字
+            const string deleteBothAction = "删除记录和文件";      // 破坏性最强的选项
+            const string deleteRecordOnlyAction = "仅删除此记录"; // 保留文件的选项
+            const string cancelAction = "取消";
+
+            // 2. 调用 DisplayActionSheet
+            // 它会返回用户点击的按钮的文字
+            string userChoice = await App.Current.MainPage.DisplayActionSheet(
+                "确认删除",            // 标题
+                cancelAction,            // 取消按钮的文字
+                deleteBothAction,        // 破坏性操作按钮的文字 (在iOS上通常会显示为红色)
+                deleteRecordOnlyAction   // 其他选项按钮
+            );
+
+            // 3. 根据用户的选择来决定下一步操作
+            if (userChoice == null || userChoice == cancelAction)
+            {
+                return; // 用户取消了操作，直接返回
+            }
+
+            bool shouldDeleteFile = (userChoice == deleteBothAction);
+
+            IsBusy = true;
+            try
+            {
+                foreach (var fileToDelete in selectedFiles)
+                {
+                    // 步骤 A: 从数据库中删除记录 (这一步总是执行)
+                    await _dbService.DeleteRecordingAsync(fileToDelete);
+
+                    // 步骤 B: 根据用户的选择，决定是否删除物理文件
+                    if (shouldDeleteFile)
+                    {
+                        try
+                        {
+                            if (File.Exists(fileToDelete.FilePath))
+                            {
+                                File.Delete(fileToDelete.FilePath);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // 如果文件删除失败，在控制台输出日志，但继续处理下一条记录
+                            Console.WriteLine($"Failed to delete file {fileToDelete.FilePath}: {ex.Message}");
+                        }
+                    }
+
+                    // 步骤 C: 从UI集合中移除该项 (这一步也总是执行)
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        RecordingFiles.Remove(fileToDelete);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                await App.Current.MainPage.DisplayAlert("删除失败", $"发生错误: {ex.Message}", "好的");
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
     }
 }

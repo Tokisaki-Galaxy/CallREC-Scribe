@@ -13,9 +13,6 @@ namespace CallREC_Scribe.Services
         // --- 可配置参数 ---
         private const string Region = "ap-shanghai";    // 没啥用
 
-        // 识别引擎类型
-        private const string EngineModelType = "8k_zh";
-
         // Base64 编码后的大小限制 (5MB)。API 的限制是针对编码后的数据。
         private const long Base64SizeLimit = 5 * 1024 * 1024;
 
@@ -66,11 +63,13 @@ namespace CallREC_Scribe.Services
                 clientProfile.HttpProfile = httpProfile;
                 AsrClient client = new AsrClient(cred, Region, clientProfile);
 
+                var engineModelType = Preferences.Get("TencentEngineModel", "8k_zh"); // 默认值8k
+
                 // 5. 创建录音文件识别请求 (CreateRecTask)
                 CreateRecTaskRequest req = new CreateRecTaskRequest
                 {
-                    EngineModelType = EngineModelType,
-                    ChannelNum = 1, // 通话录音通常是单声道
+                    EngineModelType = engineModelType,
+                    ChannelNum = 1, // 单声道
                     ResTextFormat = 0, // 识别结果文本格式：0 表示带时间戳的句子级输出
                     SourceType = 1,
                     Data = base64Data,

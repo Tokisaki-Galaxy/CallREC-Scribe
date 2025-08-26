@@ -33,6 +33,8 @@
             <Button Text="转译选中" Command="{Binding TranscribeSelectedCommand}" HorizontalOptions="FillAndExpand" />
             <Button Text="全选" Command="{Binding SelectAllCommand}" />
             <Button Text="反选" Command="{Binding InvertSelectionCommand}" />
+            <Button Text="导出" Command="{Binding ExportCommand}" />
+            <Button Text="删除" Command="{Binding DeleteSelectedCommand}" BackgroundColor="Red" TextColor="White"/>
         </HorizontalStackLayout>
 
         <!-- 录音文件表格 -->

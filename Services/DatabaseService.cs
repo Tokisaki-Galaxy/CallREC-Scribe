@@ -32,5 +32,17 @@ namespace CallREC_Scribe.Services
             // Upsert: 如果已存在则更新，否则插入
             await _database.InsertOrReplaceAsync(recording);
         }
+
+        public async Task<List<RecordingFile>> GetAllRecordingsAsync()
+        {
+            await InitializeAsync();
+            return await _database.Table<RecordingFile>().ToListAsync();
+        }
+
+        public async Task DeleteRecordingAsync(RecordingFile recording)
+        {
+            await InitializeAsync();
+            await _database.DeleteAsync(recording);
+        }
     }
 }
