@@ -31,6 +31,7 @@ namespace CallREC_Scribe
             builder.Services.AddSingleton<TencentAsrService>();
             builder.Services.AddSingleton<FilenameParsingService>();
             builder.Services.AddSingleton<ExportService>();
+            builder.Services.AddSingleton<MediaConversionService>();
 
             // 页面和ViewModel通常注册为瞬态 (Transient)
             builder.Services.AddTransient<MainPage>();

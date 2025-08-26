@@ -18,7 +18,7 @@
                    Placeholder="请输入 Secret Key" />
 
             <Label Text="选择识别引擎类型:"/>
-            <Picker Title="引擎类型（通话录音一般是8k，别选错）" SelectedItem="{Binding SelectedEngineModel}">
+            <Picker Title="引擎类型（通话录音一般是8k）" SelectedItem="{Binding SelectedEngineModel}">
                 <Picker.ItemsSource>
                     <x:Array Type="{x:Type x:String}">
                         <x:String>8k_zh</x:String>

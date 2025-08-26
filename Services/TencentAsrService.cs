@@ -10,6 +10,8 @@ namespace CallREC_Scribe.Services
 {
     public class TencentAsrService
     {
+        private readonly MediaConversionService _mediaConversionService;
+
         // --- 可配置参数 ---
         private const string Region = "ap-shanghai";    // 没啥用
 
@@ -20,10 +22,13 @@ namespace CallREC_Scribe.Services
         // 我们设置一个更安全的值，例如 3.5MB，以避免临界问题。
         private const long RawFileSizeLimit = (long)(3.5 * 1024 * 1024);
 
+        public TencentAsrService(MediaConversionService mediaConversionService)
+        {
+            _mediaConversionService = mediaConversionService;
+        }
 
         public async System.Threading.Tasks.Task<string> TranscribeAsync(string filePath, string secretId, string secretKey)
         {
-            // 1. 输入验证
             if (string.IsNullOrWhiteSpace(secretId) || string.IsNullOrWhiteSpace(secretKey))
             {
                 return "错误：API密钥未配置。";
@@ -35,19 +40,20 @@ namespace CallREC_Scribe.Services
 
             try
             {
-                // 2. 检查文件大小
-                var fileInfo = new FileInfo(filePath);
+                // 检查并转换文件格式（如果需要）
+                var engineModelType = Preferences.Get("TencentEngineModel", "8k_zh"); // 默认值8k
+                string fileToProcessPath = await _mediaConversionService.PrepareAudioForTranscriptionAsync(filePath, engineModelType);
+                if (string.IsNullOrEmpty(fileToProcessPath)) return "错误：音频文件格式转换失败，无法进行转录。";
+
+                var fileInfo = new FileInfo(fileToProcessPath);
                 if (fileInfo.Length > RawFileSizeLimit)
                 {
-                    return $"错误：文件大小超过 {RawFileSizeLimit / 1024 / 1024:F2} MB，无法直接上传。请使用其他方法处理大文件。";
+                    return $"错误：文件大小超过 {RawFileSizeLimit / 1024 / 1024:F2} MB，无法直接上传。";
                 }
-                if (fileInfo.Length == 0)
-                {
-                    return "错误：文件大小为0。";
-                }
+                if (fileInfo.Length == 0) return "错误：文件大小为0。";
 
-                // 3. 读取文件并进行 Base64 编码
-                byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+                // 读取文件并进行 Base64 编码
+                byte[] fileBytes = await File.ReadAllBytesAsync(fileToProcessPath);
                 string base64Data = Convert.ToBase64String(fileBytes);
 
                 // 再次确认编码后的大小，以防万一
@@ -56,16 +62,14 @@ namespace CallREC_Scribe.Services
                     return $"错误：文件Base64编码后超过5MB，无法上传。";
                 }
 
-                // 4. 初始化 SDK 客户端
+                // 初始化 SDK 客户端
                 Credential cred = new Credential { SecretId = secretId, SecretKey = secretKey };
                 ClientProfile clientProfile = new ClientProfile();
                 HttpProfile httpProfile = new HttpProfile { Endpoint = "asr.tencentcloudapi.com" };
                 clientProfile.HttpProfile = httpProfile;
                 AsrClient client = new AsrClient(cred, Region, clientProfile);
 
-                var engineModelType = Preferences.Get("TencentEngineModel", "8k_zh"); // 默认值8k
-
-                // 5. 创建录音文件识别请求 (CreateRecTask)
+                // 创建录音文件识别请求 (CreateRecTask)
                 CreateRecTaskRequest req = new CreateRecTaskRequest
                 {
                     EngineModelType = engineModelType,
@@ -76,7 +80,7 @@ namespace CallREC_Scribe.Services
                     DataLen = (ulong)fileBytes.Length
                 };
 
-                // 6. 发送请求，获取任务ID
+                // 发送请求，获取任务ID
                 CreateRecTaskResponse resp = await client.CreateRecTask(req);
                 ulong? taskId = resp.Data?.TaskId;
 

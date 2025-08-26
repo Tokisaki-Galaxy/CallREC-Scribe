@@ -32,6 +32,9 @@ namespace CallREC_Scribe.ViewModels
         [ObservableProperty]
         private bool _isBusy = false; // 用于控制加载指示器
 
+        [ObservableProperty]
+        private string _currentTaskDescription;
+
         public ObservableCollection<RecordingFile> RecordingFiles { get; } = new();
 
         public MainPageViewModel(
@@ -151,6 +154,7 @@ namespace CallREC_Scribe.ViewModels
             if (!selectedFiles.Any()) return;
 
             IsBusy = true;
+            CurrentTaskDescription = "准备开始转译...";
             var secretId = Preferences.Get("TencentSecretId", string.Empty);
             var secretKey = Preferences.Get("TencentSecretKey", string.Empty);
 
@@ -163,12 +167,14 @@ namespace CallREC_Scribe.ViewModels
 
             foreach (var file in selectedFiles)
             {
+                CurrentTaskDescription = $"正在处理: {Path.GetFileName(file.FilePath)}";
                 var result = await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey);
                 file.TranscriptionPreview = result;
                 await _dbService.SaveRecordingAsync(file);
             }
 
             IsBusy = false;
+            CurrentTaskDescription = string.Empty;
             await App.Current.MainPage.DisplayAlert("完成", "选定文件的转译已完成。", "好的");
         }
 
@@ -225,7 +231,7 @@ namespace CallREC_Scribe.ViewModels
                 var filesOnDisk = new HashSet<string>();
                 if (Directory.Exists(RecordingsFolder))
                 {
-                    var allowedExtensions = new[] { ".mp3", ".m4a" };
+                    var allowedExtensions = new[] { ".mp3", ".m4a" ,".wav", ".pcm", ".ogg"};
                     var files = Directory.EnumerateFiles(RecordingsFolder)
                         .Where(file => allowedExtensions.Contains(Path.GetExtension(file).ToLowerInvariant()));
                     filesOnDisk = new HashSet<string>(files);
