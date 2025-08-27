@@ -18,6 +18,7 @@
         <HorizontalStackLayout Grid.Row="0" Spacing="10">
             <Button Text="语音识别配置" Command="{Binding ConfigureApiCommand}" HorizontalOptions="FillAndExpand"/>
             <Button Text="文件名解析配置" Command="{Binding ConfigureParsingCommand}" HorizontalOptions="FillAndExpand"/>
+            <Button Text="Test FFmpeg Callback" Command="{Binding TestFFmpegCommand}" HorizontalOptions="FillAndExpand"/>
         </HorizontalStackLayout>
 
         <!-- 语音保存位置 -->

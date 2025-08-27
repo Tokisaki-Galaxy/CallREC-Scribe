@@ -1,10 +1,11 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
-using TencentCloud.Common;
-using TencentCloud.Common.Profile;
 using TencentCloud.Asr.V20190614;
 using TencentCloud.Asr.V20190614.Models;
+using TencentCloud.Common;
+using TencentCloud.Common.Profile;
 
 namespace CallREC_Scribe.Services
 {
@@ -29,6 +30,8 @@ namespace CallREC_Scribe.Services
 
         public async System.Threading.Tasks.Task<string> TranscribeAsync(string filePath, string secretId, string secretKey)
         {
+            secretId = secretId?.Trim();
+            secretKey = secretKey?.Trim();
             if (string.IsNullOrWhiteSpace(secretId) || string.IsNullOrWhiteSpace(secretKey))
             {
                 return "错误：API密钥未配置。";
@@ -41,83 +44,127 @@ namespace CallREC_Scribe.Services
             try
             {
                 // 检查并转换文件格式（如果需要）
+                Debug.WriteLine($"[TencentAsrService] 文件转换/重采样");
                 var engineModelType = Preferences.Get("TencentEngineModel", "8k_zh"); // 默认值8k
                 string fileToProcessPath = await _mediaConversionService.PrepareAudioForTranscriptionAsync(filePath, engineModelType);
                 if (string.IsNullOrEmpty(fileToProcessPath)) return "错误：音频文件格式转换失败，无法进行转录。";
-
-                var fileInfo = new FileInfo(fileToProcessPath);
-                if (fileInfo.Length > RawFileSizeLimit)
+                Debug.WriteLine($"[TencentAsrService] 文件转换/重采样完成, 准备上传...");
+                try
                 {
-                    return $"错误：文件大小超过 {RawFileSizeLimit / 1024 / 1024:F2} MB，无法直接上传。";
-                }
-                if (fileInfo.Length == 0) return "错误：文件大小为0。";
-
-                // 读取文件并进行 Base64 编码
-                byte[] fileBytes = await File.ReadAllBytesAsync(fileToProcessPath);
-                string base64Data = Convert.ToBase64String(fileBytes);
-
-                // 再次确认编码后的大小，以防万一
-                if (System.Text.Encoding.UTF8.GetByteCount(base64Data) > Base64SizeLimit)
-                {
-                    return $"错误：文件Base64编码后超过5MB，无法上传。";
-                }
-
-                // 初始化 SDK 客户端
-                Credential cred = new Credential { SecretId = secretId, SecretKey = secretKey };
-                ClientProfile clientProfile = new ClientProfile();
-                HttpProfile httpProfile = new HttpProfile { Endpoint = "asr.tencentcloudapi.com" };
-                clientProfile.HttpProfile = httpProfile;
-                AsrClient client = new AsrClient(cred, Region, clientProfile);
-
-                // 创建录音文件识别请求 (CreateRecTask)
-                CreateRecTaskRequest req = new CreateRecTaskRequest
-                {
-                    EngineModelType = engineModelType,
-                    ChannelNum = 1, // 单声道
-                    ResTextFormat = 0, // 识别结果文本格式：0 表示带时间戳的句子级输出
-                    SourceType = 1,
-                    Data = base64Data,
-                    DataLen = (ulong)fileBytes.Length
-                };
-
-                // 发送请求，获取任务ID
-                CreateRecTaskResponse resp = await client.CreateRecTask(req);
-                ulong? taskId = resp.Data?.TaskId;
-
-                if (taskId == null)
-                {
-                    return "错误：创建识别任务失败，未能获取任务ID。";
-                }
-
-                // 7. 轮询任务状态 (DescribeTaskStatus)
-                while (true)
-                {
-                    // 每隔3秒查询一次状态
-                    await System.Threading.Tasks.Task.Delay(3000);
-
-                    DescribeTaskStatusRequest statusReq = new DescribeTaskStatusRequest { TaskId = taskId };
-                    DescribeTaskStatusResponse statusResp = await client.DescribeTaskStatus(statusReq);
-
-                    // 0:任务排队中, 1:任务执行中, 2:任务成功, -1:任务失败
-                    switch (statusResp.Data?.Status)
+                    var fileInfo = new FileInfo(fileToProcessPath);
+                    if (fileInfo.Length > RawFileSizeLimit)
                     {
-                        case 2: // 任务成功
-                            return statusResp.Data.Result ?? "任务成功，但未返回结果。";
-                        case -1: // 任务失败
-                            return $"转录失败：{statusResp.Data.ErrorMsg}";
-                        case 0: // 任务排队中
-                        case 1: // 任务执行中
-                            // 继续等待
-                            break;
-                        default:
-                            return "错误：未知的任务状态。";
+                        return $"错误：文件大小超过 {RawFileSizeLimit / 1024 / 1024:F2} MB，无法直接上传。";
+                    }
+                    if (fileInfo.Length == 0) return "错误：文件大小为0。";
+
+                    // 读取文件并进行 Base64 编码
+                    byte[] fileBytes = await File.ReadAllBytesAsync(fileToProcessPath);
+                    string base64Data = Convert.ToBase64String(fileBytes);
+
+                    // 再次确认编码后的大小，以防万一
+                    if (System.Text.Encoding.UTF8.GetByteCount(base64Data) > Base64SizeLimit)
+                    {
+                        return $"错误：文件Base64编码后超过5MB，无法上传。";
+                    }
+
+                    // 初始化 SDK 客户端
+                    Credential cred = new Credential { SecretId = secretId, SecretKey = secretKey };
+                    ClientProfile clientProfile = new ClientProfile();
+                    HttpProfile httpProfile = new HttpProfile { Endpoint = "asr.tencentcloudapi.com" };
+                    clientProfile.HttpProfile = httpProfile;
+                    AsrClient client = new AsrClient(cred, Region, clientProfile);
+
+                    // 创建录音文件识别请求 (CreateRecTask)
+                    CreateRecTaskRequest req = new CreateRecTaskRequest
+                    {
+                        EngineModelType = engineModelType,
+                        ChannelNum = 1, // 单声道
+                        ResTextFormat = 0, // 识别结果文本格式：0 表示带时间戳的句子级输出
+                        SourceType = 1,
+                        Data = base64Data,
+                        DataLen = (ulong)fileBytes.Length
+                    };
+
+                    // 发送请求，获取任务ID
+                    CreateRecTaskResponse resp = await client.CreateRecTask(req);
+                    ulong? taskId = resp.Data?.TaskId;
+
+                    if (taskId == null)
+                    {
+                        return "错误：创建识别任务失败，未能获取任务ID。";
+                    }
+                    Debug.WriteLine($"[TencentAsrService] 成功创建任务, TaskID: {taskId}. 开始轮询状态...");
+                    // 轮询任务状态 (DescribeTaskStatus)
+                    while (true)
+                    {
+                        // 每隔3秒查询一次状态
+                        await System.Threading.Tasks.Task.Delay(3000);
+
+                        DescribeTaskStatusRequest statusReq = new DescribeTaskStatusRequest { TaskId = taskId };
+                        DescribeTaskStatusResponse statusResp = await client.DescribeTaskStatus(statusReq);
+
+                        // 0:任务排队中, 1:任务执行中, 2:任务成功, -1:任务失败
+                        switch (statusResp.Data?.Status)
+                        {
+                            case 2: // 任务成功
+                                return statusResp.Data.Result ?? "任务成功，但未返回结果。";
+                            case -1: // 任务失败
+                                return $"转录失败：{statusResp.Data.ErrorMsg}";
+                            case 0: // 任务排队中
+                            case 1: // 任务执行中
+                                    // 继续等待
+                                break;
+                            default:
+                                return "错误：未知的任务状态。";
+                        }
+                    }
+                }
+                finally
+                {
+                    // 清理操作：删除处理过的临时文件
+                    if (!string.IsNullOrEmpty(fileToProcessPath) && File.Exists(fileToProcessPath))
+                    {
+                        try
+                        {
+                            File.Delete(fileToProcessPath);
+                            Debug.WriteLine($"[TencentAsrService] 已清理临时文件: {fileToProcessPath}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[TencentAsrService] 清理临时文件失败: {ex.Message}");
+                        }
                     }
                 }
             }
+            catch (TencentCloudSDKException tcEx)
+            {
+                // 捕获并格式化腾讯云SDK的特定异常信息
+                string errorDetails;
+                if (string.IsNullOrEmpty(tcEx.ErrorCode) && tcEx.InnerException != null)
+                {
+                    // 如果ErrorCode为空，说明问题可能出在网络层或更底层，打印内部异常信息
+                    errorDetails = $"SDK内部错误: \n" +
+                                   $"类型: {tcEx.InnerException.GetType().Name}\n" +
+                                   $"信息: {tcEx.InnerException.Message}";
+                    Debug.WriteLine($"[TencentAsrService] SDK内部异常: {tcEx.InnerException}");
+                }
+                else
+                {
+                    errorDetails = $"API请求失败: \n" +
+                                   $"错误码: {tcEx.ErrorCode}\n" +
+                                   $"信息: {tcEx.Message}\n" +
+                                   $"请求ID: {tcEx.RequestId}";
+                }
+
+                Debug.WriteLine($"[TencentAsrService] {errorDetails}");
+                return errorDetails;
+            }
             catch (Exception ex)
             {
-                // 捕获SDK或IO异常
-                return $"发生异常：{ex.Message}";
+                // 捕获其他通用异常 (如网络、IO等)，并提供完整的堆栈跟踪
+                Debug.WriteLine($"[TencentAsrService] 发生未知异常: {ex}");
+                return $"发生未知异常：{ex.Message}\n详细信息请查看调试输出。";
             }
         }
     }
