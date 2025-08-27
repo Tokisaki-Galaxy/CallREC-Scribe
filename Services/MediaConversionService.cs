@@ -169,49 +169,12 @@ namespace CallREC_Scribe.Services
                     {
                         string command = $"-y -i \"{localFileCopyPath}\" -ar {targetSampleRate} -ac 1 -c:a libmp3lame \"{outputFilePath}\"";
 
+                        Debug.WriteLine($"[MediaConversionService] 当你能看到这行字的时候，很有可能会执行失败，卡在转圈圈上面。因为调试器阻止回调，这是我历时12h+发现的...但是不用调试器直接运行的时候一切正常");
                         Debug.WriteLine($"[MediaConversionService] FFmpeg即将启动 (在后台线程上),命令{command}");
                         FFmpegKit.ExecuteAsync(command, completeCallback, null, null);
 
-                        // 2. 异步等待原生任务完成。在此期间，completeCallback 对象有被 GC 回收的风险。
-                        // --- 混合模式：同时等待回调和轮询文件 ---
-
-                        // 任务1：等待回调（可能失败）
-                        var callbackTask = tcs.Task;
-
-                        // 任务2：轮询检查输出文件是否存在（作为备用方案）
-                        var pollingTask = Task.Run(async () =>
-                        {
-                            const int maxPollCount = 60; // 最多轮询30秒 (60 * 500ms)
-                            for (int i = 0; i < maxPollCount; i++)
-                            {
-                                await Task.Delay(500); // 每隔0.5秒检查一次
-                                if (File.Exists(outputFilePath))
-                                {
-                                    // 检查文件大小，确保写入已完成（避免文件刚创建但内容为空）
-                                    var fileInfo = new FileInfo(outputFilePath);
-                                    if (fileInfo.Length > 0)
-                                    {
-                                        Debug.WriteLine($"[Polling] 检测到输出文件已生成，手动完成任务。");
-                                        tcs.TrySetResult((FFmpegSession)true); // 手动触发完成
-                                        return;
-                                    }
-                                }
-                            }
-                            Debug.WriteLine($"[Polling] 轮询超时，文件未生成。");
-                        });
-
-                        // 等待回调或轮询其中任何一个完成
-                        await Task.WhenAny(callbackTask, pollingTask);
-
-                        // 3. 在 await 之后立即调用 GC.KeepAlive。
                         GC.KeepAlive(completeCallback);
-                        // 如果是轮询成功的，callbackTask 可能还未完成，但 tcs.Task 已经有结果了
-                        if (!callbackTask.IsCompleted)
-                        {
-                            Debug.WriteLine($"[MediaConversionService] 任务由文件轮询机制完成。");
-                        }
-
-                        var completedSession = await callbackTask; // 获取最终的会话结果
+                        var completedSession = await tcs.Task;
                         Debug.WriteLine($"[MediaConversionService] FFmpeg任务已结束");
 
                         if (ReturnCode.IsSuccess(completedSession.ReturnCode))

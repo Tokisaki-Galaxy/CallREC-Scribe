@@ -30,8 +30,6 @@ namespace CallREC_Scribe.Services
 
         public async System.Threading.Tasks.Task<string> TranscribeAsync(string filePath, string secretId, string secretKey)
         {
-            secretId = secretId?.Trim();
-            secretKey = secretKey?.Trim();
             if (string.IsNullOrWhiteSpace(secretId) || string.IsNullOrWhiteSpace(secretKey))
             {
                 return "错误：API密钥未配置。";

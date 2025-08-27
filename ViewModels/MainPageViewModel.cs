@@ -142,7 +142,7 @@ namespace CallREC_Scribe.ViewModels
                 return;
             }
 
-            var alreadyTranscribed = selectedFiles.Count(f => !string.IsNullOrEmpty(f.TranscriptionPreview));
+            var alreadyTranscribed = selectedFiles.Count(f => f.TranscriptionPreview?.StartsWith("[0:0") ?? false);
             if (alreadyTranscribed > 0)
             {
                 bool retranscribe = await App.Current.MainPage.DisplayAlert("确认",
@@ -151,7 +151,8 @@ namespace CallREC_Scribe.ViewModels
 
                 if (!retranscribe)
                 {
-                    selectedFiles = selectedFiles.Where(f => string.IsNullOrEmpty(f.TranscriptionPreview)).ToList();
+                    // 如果点击跳过，则过滤掉已有转录内容的文件
+                    selectedFiles = selectedFiles.Where(f => !(f.TranscriptionPreview?.StartsWith("[0:0") ?? false)).ToList();
                 }
             }
 
@@ -161,6 +162,8 @@ namespace CallREC_Scribe.ViewModels
             CurrentTaskDescription = "准备开始转译...";
             var secretId = Preferences.Get("TencentSecretId", string.Empty);
             var secretKey = Preferences.Get("TencentSecretKey", string.Empty);
+            secretId = secretId?.Trim();
+            secretKey = secretKey?.Trim();
 
             if (string.IsNullOrEmpty(secretId) || string.IsNullOrEmpty(secretKey))
             {
