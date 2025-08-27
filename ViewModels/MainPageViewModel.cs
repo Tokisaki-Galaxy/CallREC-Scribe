@@ -339,11 +339,10 @@ namespace CallREC_Scribe.ViewModels
             }
 
             IsBusy = true;
+            // 1. 调用服务生成文件，并获取临时文件路径
+            string filePath = await _exportService.ExportFilesAsync(selectedFiles);
             try
             {
-                // 1. 调用服务生成文件，并获取临时文件路径
-                string filePath = await _exportService.ExportFilesAsync(selectedFiles);
-
                 if (string.IsNullOrEmpty(filePath))
                 {
                     await App.Current.MainPage.DisplayAlert("错误", "创建导出文件失败。", "好的");
@@ -364,6 +363,19 @@ namespace CallREC_Scribe.ViewModels
             finally
             {
                 IsBusy = false;
+                // 清理操作：删除导出的临时文件
+                if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                {
+                    try
+                    {
+                        File.Delete(filePath);
+                        Debug.WriteLine($"[Export] 已清理导出的临时文件: {filePath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[Export] 清理导出的临时文件失败: {ex.Message}");
+                    }
+                }
             }
         }
 
