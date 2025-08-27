@@ -172,20 +172,35 @@ namespace CallREC_Scribe.ViewModels
                 return;
             }
 
-            foreach (var file in selectedFiles)
+            await Task.Run(async () =>
             {
-                CurrentTaskDescription = $"正在处理: {Path.GetFileName(file.FilePath)}";
-                var result = await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey);
-                file.TranscriptionPreview = result;
-                await _dbService.SaveRecordingAsync(file);
-            }
+                foreach (var file in selectedFiles)
+                {
+                    // 在后台线程中调用 ASR 服务
+                    var result = await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey, newProgress =>
+                    {
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            CurrentTaskDescription = $"正在处理: {Path.GetFileName(file.FilePath)}\n{newProgress}";
+                        });
+                    });
 
-            IsBusy = false;
-            CurrentTaskDescription = string.Empty;
-            await App.Current.MainPage.DisplayAlert("完成", "选定文件的转译已完成。", "好的");
+                    // 更新文件信息并保存到数据库
+                    file.TranscriptionPreview = result;
+                    await _dbService.SaveRecordingAsync(file);
+                }
+
+                // 所有任务完成后，在UI线程上重置状态并显示提示
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    IsBusy = false;
+                    CurrentTaskDescription = string.Empty;
+                    await App.Current.MainPage.DisplayAlert("完成", "选定文件的转译已完成。", "好的");
+                });
+            });
         }
 
-        [RelayCommand]
+            [RelayCommand]
         private void SelectAll()
         {
             foreach (var file in RecordingFiles)
@@ -455,6 +470,15 @@ namespace CallREC_Scribe.ViewModels
             finally
             {
                 IsBusy = false;
+            }
+        }
+
+        [RelayCommand]
+        private void ToggleSelection(RecordingFile fileToToggle)
+        {
+            if (fileToToggle != null)
+            {
+                fileToToggle.IsSelected = !fileToToggle.IsSelected;
             }
         }
 

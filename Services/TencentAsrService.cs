@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DocumentFormat.OpenXml.Vml;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -28,7 +29,7 @@ namespace CallREC_Scribe.Services
             _mediaConversionService = mediaConversionService;
         }
 
-        public async System.Threading.Tasks.Task<string> TranscribeAsync(string filePath, string secretId, string secretKey)
+        public async System.Threading.Tasks.Task<string> TranscribeAsync(string filePath, string secretId, string secretKey, Action<string> onProgress)
         {
             if (string.IsNullOrWhiteSpace(secretId) || string.IsNullOrWhiteSpace(secretKey))
             {
@@ -43,6 +44,7 @@ namespace CallREC_Scribe.Services
             {
                 // 检查并转换文件格式（如果需要）
                 Debug.WriteLine($"[TencentAsrService] 文件转换/重采样");
+                onProgress?.Invoke("文件转换/重采样...");
                 var engineModelType = Preferences.Get("TencentEngineModel", "8k_zh"); // 默认值8k
                 string fileToProcessPath = await _mediaConversionService.PrepareAudioForTranscriptionAsync(filePath, engineModelType);
                 if (string.IsNullOrEmpty(fileToProcessPath)) return "错误：音频文件格式转换失败，无法进行转录。";
@@ -93,6 +95,7 @@ namespace CallREC_Scribe.Services
                         return "错误：创建识别任务失败，未能获取任务ID。";
                     }
                     Debug.WriteLine($"[TencentAsrService] 成功创建任务, TaskID: {taskId}. 开始轮询状态...");
+                    onProgress?.Invoke("已上传，等待云端处理...");
                     // 轮询任务状态 (DescribeTaskStatus)
                     while (true)
                     {

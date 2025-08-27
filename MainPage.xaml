@@ -51,7 +51,14 @@
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:RecordingFile">
                     <Grid ColumnDefinitions="Auto, *, *, *" Padding="5" ColumnSpacing="5">
-                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalOptions="Center"/>
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer 
+                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:MainPageViewModel}}, Path=ToggleSelectionCommand}"
+                                CommandParameter="{Binding .}"/>
+                        </Grid.GestureRecognizers>
+
+                        <!-- IsHitTestVisible="False" 防止重复触发点击事件 -->
+                        <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" VerticalOptions="Center" InputTransparent="True"/>
                         <Label Grid.Column="1" Text="{Binding RecordingDate, StringFormat='{0:yyyy-MM-dd HH:mm}'}" VerticalOptions="Center"/>
                         <Label Grid.Column="2" Text="{Binding PhoneNumber}" VerticalOptions="Center"/>
                         <Label Grid.Column="3" Text="{Binding TranscriptionPreview, Converter={StaticResource TranscriptionStatusConv}}" LineBreakMode="TailTruncation" VerticalOptions="Center"/>

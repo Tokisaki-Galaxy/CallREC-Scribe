@@ -59,7 +59,7 @@ namespace CallREC_Scribe.Services
                 string command = "-version";
                 Debug.WriteLine($"[FFmpegTest] 准备执行命令: '{command}'");
 
-                FFmpegKit.ExecuteAsync(command, completeCallback, null, null);
+                FFmpegKit.ExecuteAsync(command, completeCallback);
                 Debug.WriteLine("[FFmpegTest] 命令已提交，正在异步等待回调...");
                 var completedSession = await tcs.Task;
                 GC.KeepAlive(completeCallback);
@@ -171,7 +171,7 @@ namespace CallREC_Scribe.Services
 
                         Debug.WriteLine($"[MediaConversionService] 当你能看到这行字的时候，很有可能会执行失败，卡在转圈圈上面。因为调试器阻止回调，这是我历时12h+发现的...但是不用调试器直接运行的时候一切正常");
                         Debug.WriteLine($"[MediaConversionService] FFmpeg即将启动 (在后台线程上),命令{command}");
-                        FFmpegKit.ExecuteAsync(command, completeCallback, null, null);
+                        FFmpegKit.ExecuteAsync(command, completeCallback);
 
                         GC.KeepAlive(completeCallback);
                         var completedSession = await tcs.Task;
