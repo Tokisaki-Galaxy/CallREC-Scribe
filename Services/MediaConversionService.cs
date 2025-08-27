@@ -96,8 +96,7 @@ namespace CallREC_Scribe.Services
             try
             {
                 // 为副本创建一个唯一的文件名，以避免冲突
-                string safeOriginalFileName = Path.GetFileName(originalFilePath).Replace(' ', '_');
-                string tempFileName = $"{Guid.NewGuid()}_{safeOriginalFileName}";
+                string tempFileName = $"{Guid.NewGuid()}"; // 避免文件中中文字符
                 string tempFilePath = Path.Combine(FileSystem.CacheDirectory, tempFileName);
 
                 // 使用 .NET 的标准文件 API 读取原始文件并写入到缓存目录

@@ -142,7 +142,7 @@ namespace CallREC_Scribe.ViewModels
                 return;
             }
 
-            var alreadyTranscribed = selectedFiles.Count(f => f.TranscriptionPreview?.StartsWith("[0:0") ?? false);
+            var alreadyTranscribed = selectedFiles.Count(f => f.TranscriptionPreview?.StartsWith("[0:") ?? false);
             if (alreadyTranscribed > 0)
             {
                 bool retranscribe = await App.Current.MainPage.DisplayAlert("确认",
@@ -152,7 +152,7 @@ namespace CallREC_Scribe.ViewModels
                 if (!retranscribe)
                 {
                     // 如果点击跳过，则过滤掉已有转录内容的文件
-                    selectedFiles = selectedFiles.Where(f => !(f.TranscriptionPreview?.StartsWith("[0:0") ?? false)).ToList();
+                    selectedFiles = selectedFiles.Where(f => !(f.TranscriptionPreview?.StartsWith("[0:") ?? false)).ToList();
                 }
             }
 
@@ -176,18 +176,21 @@ namespace CallREC_Scribe.ViewModels
             {
                 foreach (var file in selectedFiles)
                 {
-                    // 在后台线程中调用 ASR 服务
-                    var result = await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey, newProgress =>
+                    var result = await Task.Run(async () => await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey, newProgress =>
                     {
+                        // 进度更新需要回到UI线程
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
                             CurrentTaskDescription = $"正在处理: {Path.GetFileName(file.FilePath)}\n{newProgress}";
                         });
-                    });
+                    }));
 
-                    // 更新文件信息并保存到数据库
-                    file.TranscriptionPreview = result;
-                    await _dbService.SaveRecordingAsync(file);
+                    // 当单个文件处理完成后，回到UI线程更新列表项和数据库
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        file.TranscriptionPreview = result;
+                        await _dbService.SaveRecordingAsync(file);
+                    });
                 }
 
                 // 所有任务完成后，在UI线程上重置状态并显示提示

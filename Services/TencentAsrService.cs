@@ -49,6 +49,7 @@ namespace CallREC_Scribe.Services
                 string fileToProcessPath = await _mediaConversionService.PrepareAudioForTranscriptionAsync(filePath, engineModelType);
                 if (string.IsNullOrEmpty(fileToProcessPath)) return "错误：音频文件格式转换失败，无法进行转录。";
                 Debug.WriteLine($"[TencentAsrService] 文件转换/重采样完成, 准备上传...");
+                onProgress?.Invoke("文件转换/重采样完成, 准备上传...");
                 try
                 {
                     var fileInfo = new FileInfo(fileToProcessPath);
@@ -59,7 +60,8 @@ namespace CallREC_Scribe.Services
                     if (fileInfo.Length == 0) return "错误：文件大小为0。";
 
                     // 读取文件并进行 Base64 编码
-                    byte[] fileBytes = await File.ReadAllBytesAsync(fileToProcessPath);
+                    onProgress?.Invoke("文件编码中...");
+                    byte[] fileBytes = await File.ReadAllBytesAsync(fileToProcessPath).ConfigureAwait(false);
                     string base64Data = Convert.ToBase64String(fileBytes);
 
                     // 再次确认编码后的大小，以防万一
@@ -69,6 +71,8 @@ namespace CallREC_Scribe.Services
                     }
 
                     // 初始化 SDK 客户端
+                    onProgress?.Invoke("编码完成，初始化SDK客户端...");
+                    Debug.WriteLine($"[TencentAsrService] 初始化 SDK 客户端");
                     Credential cred = new Credential { SecretId = secretId, SecretKey = secretKey };
                     ClientProfile clientProfile = new ClientProfile();
                     HttpProfile httpProfile = new HttpProfile { Endpoint = "asr.tencentcloudapi.com" };
@@ -87,7 +91,7 @@ namespace CallREC_Scribe.Services
                     };
 
                     // 发送请求，获取任务ID
-                    CreateRecTaskResponse resp = await client.CreateRecTask(req);
+                    CreateRecTaskResponse resp = await client.CreateRecTask(req).ConfigureAwait(false);
                     ulong? taskId = resp.Data?.TaskId;
 
                     if (taskId == null)
@@ -96,15 +100,31 @@ namespace CallREC_Scribe.Services
                     }
                     Debug.WriteLine($"[TencentAsrService] 成功创建任务, TaskID: {taskId}. 开始轮询状态...");
                     onProgress?.Invoke("已上传，等待云端处理...");
-                    // 轮询任务状态 (DescribeTaskStatus)
+                    await System.Threading.Tasks.Task.Delay(100).ConfigureAwait(false);
                     while (true)
                     {
-                        // 每隔3秒查询一次状态
-                        await System.Threading.Tasks.Task.Delay(3000);
+                        await System.Threading.Tasks.Task.Delay(3000).ConfigureAwait(false);
 
+                        Debug.WriteLine($"[TencentAsrService] 等待查询");
                         DescribeTaskStatusRequest statusReq = new DescribeTaskStatusRequest { TaskId = taskId };
-                        DescribeTaskStatusResponse statusResp = await client.DescribeTaskStatus(statusReq);
 
+                        var statusTask = client.DescribeTaskStatus(statusReq);
+                        var timeoutTask = System.Threading.Tasks.Task.Delay(3000);
+
+                        var completedTask = await System.Threading.Tasks.Task.WhenAny(statusTask, timeoutTask).ConfigureAwait(false);
+
+                        if (completedTask == timeoutTask)
+                        {
+                            // 如果是超时任务先完成了
+                            Debug.WriteLine("[TencentAsrService] 查询任务状态超时 (3秒)，将继续下一次轮询...");
+                            onProgress?.Invoke("云端处理超时，正在重试...");
+                            continue; // 跳过本次循环，进入下一次轮询
+                        }
+
+                        // 如果是状态查询任务先完成了
+                        // 现在可以安全地获取结果，因为它已经完成了
+                        DescribeTaskStatusResponse statusResp = await statusTask.ConfigureAwait(false);
+                        Debug.WriteLine($"[TencentAsrService] 任务状态: {statusResp.Data?.Status}, 错误信息: {statusResp.Data?.ErrorMsg}");
                         // 0:任务排队中, 1:任务执行中, 2:任务成功, -1:任务失败
                         switch (statusResp.Data?.Status)
                         {
@@ -113,8 +133,7 @@ namespace CallREC_Scribe.Services
                             case -1: // 任务失败
                                 return $"转录失败：{statusResp.Data.ErrorMsg}";
                             case 0: // 任务排队中
-                            case 1: // 任务执行中
-                                    // 继续等待
+                            case 1: // 任务执行中，继续等待
                                 break;
                             default:
                                 return "错误：未知的任务状态。";
