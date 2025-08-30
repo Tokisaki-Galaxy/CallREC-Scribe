@@ -93,11 +93,15 @@
 		<PackageReference Include="ClosedXML" Version="0.105.0" />
 		<PackageReference Include="CommunityToolkit.Maui" Version="9.1.1" />
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<PackageReference Include="Concentus" Version="2.2.2" />
+		<PackageReference Include="Concentus.Oggfile" Version="1.0.6" />
 		<PackageReference Include="DocX" Version="4.0.25105.5786" />
 		<PackageReference Include="FFMpegCore" Version="5.2.0" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
+		<PackageReference Include="NAudio" Version="2.2.1" />
+		<PackageReference Include="NAudio.Lame" Version="2.1.0" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 		<PackageReference Include="TencentCloudSDK.Asr" Version="3.0.1273" />
 	</ItemGroup>

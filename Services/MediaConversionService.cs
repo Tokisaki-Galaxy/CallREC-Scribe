@@ -1,217 +1,142 @@
-﻿// Services/MediaConversionService.cs
+﻿// 文件名: Services/MediaConversionService.cs
+
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
-#if WINDOWS
-using FFMpegCore;
-#elif ANDROID
-using Ffmpegkit;
-using Ffmpegkit.Droid;
+#if ANDROID
+using Android.Media;
 #endif
 
 namespace CallREC_Scribe.Services
 {
     public class MediaConversionService
     {
-#if ANDROID
-        /// <summary>
-        /// 实现了 FFmpegKit 回调接口的内部类。
-        /// 它持有一个 TaskCompletionSource，用于在原生代码完成时通知 .NET 异步任务。
-        /// </summary>
-        private class FFmpegSessionCompleteCallback : Java.Lang.Object, IFFmpegSessionCompleteCallback
+        public async Task<string> PrepareAudioForTranscriptionAsync(string originalFilePath, string engineModelType)
         {
-            private readonly TaskCompletionSource<FFmpegSession> _tcs;
+            int targetSampleRate = engineModelType.StartsWith("8k", StringComparison.OrdinalIgnoreCase) ? 8000 : 16000;
+            string outputFileName = $"{Guid.NewGuid()}.wav";
+            string outputFilePath = Path.Combine(FileSystem.CacheDirectory, outputFileName);
 
-            public FFmpegSessionCompleteCallback(TaskCompletionSource<FFmpegSession> tcs)
-            {
-                _tcs = tcs;
-            }
+            Debug.WriteLine($"[MediaConversionService] 开始转换为 WAV 格式。目标采样率: {targetSampleRate} Hz");
 
-            /// <summary>
-            /// 当 FFmpeg 原生任务完成时，此方法被调用。
-            /// </summary>
-            /// <param name="session">包含执行结果的会话对象。</param>
-            public void Apply(FFmpegSession session)
-            {
-                Debug.WriteLine($"[FFmpegSessionCompleteCallback] 回调已触发，返回码: {session.ReturnCode}");
-                // 使用 TrySetResult 来确保即使回调被意外调用多次也不会抛出异常，从而完成 await tcs.Task 的等待。
-                _tcs.TrySetResult(session);
-            }
-        }
-#endif
-        /// <summary>
-        /// 运行一个独立的 FFmpeg-kit 测试，以验证回调机制是否正常工作。
-        /// 这个测试只获取 FFmpeg 版本，不涉及文件 I/O。
-        /// </summary>
-        /// <returns>如果 FFmpeg 成功执行并返回，则为 true；否则为 false。</returns>
-        public async Task<bool> RunFfmpegCallbackTestAsync()
-        {
-            Debug.WriteLine("[FFmpegTest] 开始进行回调机制测试...");
-#if ANDROID
-            // 1. 使用 TaskCompletionSource 来桥接回调和异步任务
-            var tcs = new TaskCompletionSource<FFmpegSession>();
-            // 2. 创建回调实例。这是最关键的一步，必须确保此对象在回调发生前不被GC回收。
-            var completeCallback = new FFmpegSessionCompleteCallback(tcs);
             try
             {
-                string command = "-version";
-                Debug.WriteLine($"[FFmpegTest] 准备执行命令: '{command}'");
-
-                FFmpegKit.ExecuteAsync(command, completeCallback);
-                Debug.WriteLine("[FFmpegTest] 命令已提交，正在异步等待回调...");
-                var completedSession = await tcs.Task;
-                GC.KeepAlive(completeCallback);
-                Debug.WriteLine("[FFmpegTest] 回调成功返回！任务完成。");
-                if (ReturnCode.IsSuccess(completedSession.ReturnCode))
+                await Task.Run(() =>
                 {
-                    Debug.WriteLine($"[FFmpegTest] FFmpeg 成功执行。版本信息: {completedSession.Output}");
-                    return true;
-                }
-                else
-                {
-                    Debug.WriteLine($"[FFmpegTest] FFmpeg 执行失败，返回码: {completedSession.ReturnCode}.");
-                    Debug.WriteLine($"[FFmpegTest] 日志: {completedSession.GetAllLogsAsString}");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                // 确保在异常情况下对象也能存活到 catch 块结束
-                GC.KeepAlive(completeCallback);
-                Debug.WriteLine($"[FFmpegTest] 测试执行期间发生异常: {ex}");
-                return false;
-            }
+#if ANDROID
+                    DecodeAndResampleToWavOnAndroid(originalFilePath, outputFilePath, targetSampleRate);
+#elif WINDOWS
+                    ResampleToWavOnWindows(originalFilePath, outputFilePath, targetSampleRate);
 #else
-    // 在其他平台上，此测试不适用
-    Debug.WriteLine("[FFmpegTest] 测试仅适用于 Android 平台。");
-    await Task.CompletedTask; // 保持方法签名一致
-    return false;
+                    throw new NotSupportedException("当前平台不支持媒体转换。");
 #endif
-        }
+                });
 
-        private async Task<string> CreateLocalCopyOfFileAsync(string originalFilePath)
-        {
-            try
-            {
-                // 为副本创建一个唯一的文件名，以避免冲突
-                string tempFileName = $"{Guid.NewGuid()}"; // 避免文件中中文字符
-                string tempFilePath = Path.Combine(FileSystem.CacheDirectory, tempFileName);
-
-                // 使用 .NET 的标准文件 API 读取原始文件并写入到缓存目录
-                using (var sourceStream = File.OpenRead(originalFilePath))
-                using (var destinationStream = File.Create(tempFilePath))
-                {
-                    await sourceStream.CopyToAsync(destinationStream);
-                }
-
-                Debug.WriteLine($"[MediaConversionService] 已成功创建文件副本: {tempFilePath}");
-                return tempFilePath;
+                Debug.WriteLine($"[MediaConversionService] 转换成功完成！输出文件: {outputFilePath}");
+                return outputFilePath;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[MediaConversionService] 创建文件副本失败: {ex.Message}");
+                Debug.WriteLine($"[MediaConversionService] 转换失败: {ex.Message}");
+                Debug.WriteLine($"[MediaConversionService] 堆栈跟踪: {ex.StackTrace}");
                 return null;
             }
         }
 
-        public async Task<string> PrepareAudioForTranscriptionAsync(string originalFilePath, string engineModelType)
+#if ANDROID
+        private void DecodeAndResampleToWavOnAndroid(string inputPath, string outputPath, int targetSampleRate)
         {
-            int targetSampleRate;
-            // 根据引擎模型确定目标采样率
-            if (engineModelType.StartsWith("8k", StringComparison.OrdinalIgnoreCase))
-                targetSampleRate = 8000;
-            else
-                targetSampleRate = 16000;
+            string tempPcmPath = Path.Combine(FileSystem.CacheDirectory, $"{Guid.NewGuid()}.tmp");
 
+            // --- 原生解码部分保持不变 ---
+            // (此处省略了与上一版完全相同的原生解码代码，以保持简洁)
+            MediaExtractor extractor = null;
+            MediaCodec codec = null;
             try
             {
-                // 创建一个唯一的输出文件名，并将其放在应用的缓存目录中
-                string safeFileNameWithoutExt = Path.GetFileNameWithoutExtension(originalFilePath).Replace(' ', '_');
-                string outputFileName = $"{safeFileNameWithoutExt}_{Guid.NewGuid()}.mp3";
-                string outputFilePath = Path.Combine(FileSystem.CacheDirectory, outputFileName);
-
-#if WINDOWS
-                // Windows 平台的实现 (使用 FFMpegCore)
-                return await Task.Run(async () =>
+                extractor = new MediaExtractor();
+                extractor.SetDataSource(inputPath);
+                MediaFormat format = null;
+                int audioTrackIndex = -1;
+                for (int i = 0; i < extractor.TrackCount; i++) { format = extractor.GetTrackFormat(i); if (format.GetString(MediaFormat.KeyMime).StartsWith("audio/")) { audioTrackIndex = i; break; } }
+                if (audioTrackIndex == -1) throw new InvalidOperationException("在文件中找不到音频轨道。");
+                extractor.SelectTrack(audioTrackIndex);
+                string mimeType = format.GetString(MediaFormat.KeyMime);
+                codec = MediaCodec.CreateDecoderByType(mimeType);
+                codec.Configure(format, null, null, 0);
+                codec.Start();
+                using (var fs = new FileStream(tempPcmPath, FileMode.Create, FileAccess.Write))
                 {
-                    await FFMpegArguments
-                        .FromFileInput(originalFilePath)
-                        .OutputToFile(outputFilePath, true, options => options
-                            .WithAudioSamplingRate(targetSampleRate) // 设置采样率
-                            .ForceFormat("mp3")                     // 强制输出为 mp3
-                            .WithAudioCodec("libmp3lame")           // 使用 libmp3lame 编码器
-                        )
-                        .ProcessAsynchronously();
-                
-                    return outputFilePath;
-                });
-
-#elif ANDROID
-                // Android 平台的实现 (使用 FFmpegKit.Android)
-                var localFileCopyPath = await CreateLocalCopyOfFileAsync(originalFilePath);
-                if (string.IsNullOrEmpty(localFileCopyPath))
-                {
-                    Debug.WriteLine("[MediaConversionService] 无法创建文件的本地副本，转换中止。");
-                    return null;
+                    var bufferInfo = new MediaCodec.BufferInfo(); bool isEos = false;
+                    while (!isEos)
+                    {
+                        int inIndex = codec.DequeueInputBuffer(10000); if (inIndex >= 0)
+                        {
+                            var buffer = codec.GetInputBuffer(inIndex); int sampleSize = extractor.ReadSampleData(buffer, 0);
+                            if (sampleSize < 0) { codec.QueueInputBuffer(inIndex, 0, 0, 0, MediaCodecBufferFlags.EndOfStream); } else { codec.QueueInputBuffer(inIndex, 0, sampleSize, extractor.SampleTime, 0); extractor.Advance(); }
+                        }
+                        int outIndex = codec.DequeueOutputBuffer(bufferInfo, 10000); if (outIndex >= 0)
+                        {
+                            if ((bufferInfo.Flags & MediaCodecBufferFlags.EndOfStream) != 0) isEos = true;
+                            var outBuffer = codec.GetOutputBuffer(outIndex); var chunk = new byte[bufferInfo.Size]; outBuffer.Get(chunk); outBuffer.Clear(); fs.Write(chunk, 0, chunk.Length); codec.ReleaseOutputBuffer(outIndex, false);
+                        }
+                    }
                 }
+                Debug.WriteLine($"[MediaConversionService] Android 原生解码完成。");
 
-                return await Task.Run(async () =>
+                // --- 纯C#音频处理流水线 ---
+                int originalSampleRate = format.GetInteger(MediaFormat.KeySampleRate);
+                int originalChannels = format.GetInteger(MediaFormat.KeyChannelCount);
+                var rawFormat = new WaveFormat(originalSampleRate, 16, originalChannels);
+
+                using (var reader = new RawSourceWaveStream(File.OpenRead(tempPcmPath), rawFormat))
                 {
-                    var tcs = new TaskCompletionSource<FFmpegSession>();
+                    // 1. 将旧的 IWaveProvider 转换为现代的 ISampleProvider
+                    ISampleProvider sampleProvider = reader.ToSampleProvider();
 
-                    // 1. 实例化回调对象。这个对象需要保持存活，直到原生任务完成。
-                    var completeCallback = new FFmpegSessionCompleteCallback(tcs);
-
-                    try
+                    // 2. 如果是立体声，使用纯C#的转换器转为单声道
+                    if (sampleProvider.WaveFormat.Channels > 1)
                     {
-                        string command = $"-y -i \"{localFileCopyPath}\" -ar {targetSampleRate} -ac 1 -c:a libmp3lame \"{outputFilePath}\"";
-
-                        Debug.WriteLine($"[MediaConversionService] 当你能看到这行字的时候，很有可能会执行失败，卡在转圈圈上面。因为调试器阻止回调，这是我历时12h+发现的...但是不用调试器直接运行的时候一切正常");
-                        Debug.WriteLine($"[MediaConversionService] FFmpeg即将启动 (在后台线程上),命令{command}");
-                        FFmpegKit.ExecuteAsync(command, completeCallback);
-
-                        GC.KeepAlive(completeCallback);
-                        var completedSession = await tcs.Task;
-                        Debug.WriteLine($"[MediaConversionService] FFmpeg任务已结束");
-
-                        if (ReturnCode.IsSuccess(completedSession.ReturnCode))
-                        {
-                            Debug.WriteLine($"[MediaConversionService] FFmpeg成功完成，输出文件: {outputFilePath}");
-                            File.Delete(localFileCopyPath);
-                            return outputFilePath;
-                        }
-                        else
-                        {
-                            // 如果失败，打印详细日志以便调试。
-                            Debug.WriteLine($"[MediaConversionService] FFmpegKit 执行失败，返回码: {completedSession.ReturnCode}.");
-                            var allLogs =  completedSession.GetAllLogsAsString(30);
-                            Debug.WriteLine($"[MediaConversionService] FFmpeg Logs: {allLogs}");
-                            File.Delete(localFileCopyPath);
-                            return null;
-                        }
+                        sampleProvider = new StereoToMonoSampleProvider(sampleProvider);
                     }
-                    catch (Exception ex)
-                    {
-                        // 确保在异常情况下也能保持对象存活，直到 catch 块结束。
-                        GC.KeepAlive(completeCallback);
-                        Debug.WriteLine($"[MediaConversionService] FFmpeg 执行期间发生异常: {ex.Message}");
-                        return null;
-                    }
-                });
 
-#else
-                // 其他平台的备用实现
-                Debug.WriteLine($"[MediaConversionService] 媒体转换功能未在当前平台实现。");
-                return await Task.FromResult<string>(null);
-#endif
+                    // 3. 使用100%纯C#的 WdlResamplingSampleProvider 进行重采样
+                    var resampler = new WdlResamplingSampleProvider(sampleProvider, targetSampleRate);
+
+                    // 4. 使用纯C#的 WaveFileWriter 将最终的音频流写入WAV文件
+                    //    CreateWaveFile16 会自动处理从 ISampleProvider 到 16-bit WAV 的转换
+                    WaveFileWriter.CreateWaveFile16(outputPath, resampler);
+                }
+                Debug.WriteLine($"[MediaConversionService] NAudio 纯C#处理流水线完成。");
             }
-            catch (Exception ex)
+            finally
             {
-                Debug.WriteLine($"[MediaConversionService] 转换过程中发生外部异常: {ex.Message}");
-                return await Task.FromResult<string>(null);
+                codec?.Stop(); codec?.Release();
+                extractor?.Release();
+                if (File.Exists(tempPcmPath)) File.Delete(tempPcmPath);
             }
         }
+#endif
+
+#if WINDOWS
+        private void ResampleToWavOnWindows(string inputPath, string outputPath, int targetSampleRate)
+        {
+            // 在Windows上，我们也可以使用相同的纯C#流水线，以保持代码一致和稳定
+            using (var reader = new AudioFileReader(inputPath))
+            {
+                ISampleProvider sampleProvider = reader;
+                if (sampleProvider.WaveFormat.Channels > 1)
+                {
+                    sampleProvider = new StereoToMonoSampleProvider(sampleProvider);
+                }
+                var resampler = new WdlResamplingSampleProvider(sampleProvider, targetSampleRate);
+                WaveFileWriter.CreateWaveFile16(outputPath, resampler);
+            }
+        }
+#endif
     }
 }

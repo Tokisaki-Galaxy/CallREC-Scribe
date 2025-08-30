@@ -481,22 +481,5 @@ namespace CallREC_Scribe.ViewModels
                 fileToToggle.IsSelected = !fileToToggle.IsSelected;
             }
         }
-
-        [RelayCommand]
-        private async Task TestFFmpegAsync()
-        {
-            // 在按钮点击事件中使用 async void 是安全的
-            MediaConversionService _mediaConversionService = new MediaConversionService();
-    
-    bool success = await _mediaConversionService.RunFfmpegCallbackTestAsync();
-    if (success)
-    {
-                Debug.WriteLine("FFmpeg 回调机制工作正常！");
-    }
-    else
-    {
-                Debug.WriteLine("测试失败FFmpeg 回调失败，请检查调试输出日志");
-    }
-        }
     }
 }

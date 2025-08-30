@@ -55,11 +55,9 @@ namespace CallREC_Scribe.Services
                 Debug.WriteLine($"[TencentAsrService] 文件转换/重采样");
                 onProgress?.Invoke("文件转换/重采样...");
                 var engineModelType = Preferences.Get("TencentEngineModel", "8k_zh");
-                if (Debugger.IsAttached) { fileToProcessPath = filePath; } else
-                {
-                    Debug.WriteLine("已经禁用转换服务");
+                // if (Debugger.IsAttached) { fileToProcessPath = filePath; } else {
                     fileToProcessPath = await _mediaConversionService.PrepareAudioForTranscriptionAsync(filePath, engineModelType);
-                }
+                // }
                 if (string.IsNullOrEmpty(fileToProcessPath)) return "错误：音频文件格式转换失败，无法进行转录。";
 
                 Debug.WriteLine($"[TencentAsrService] 文件转换/重采样完成, 准备上传...");
@@ -217,7 +215,7 @@ namespace CallREC_Scribe.Services
             }
             finally
             {
-                if (!string.IsNullOrEmpty(fileToProcessPath) && File.Exists(fileToProcessPath))
+                 if (!string.IsNullOrEmpty(fileToProcessPath) && File.Exists(fileToProcessPath))
                 {
                     try
                     {
