@@ -68,8 +68,12 @@
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0-windows10.0.19041.0|AnyCPU'">
 	<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-	<PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>link</TrimMode>
+	<!--<PublishTrimmed>false</PublishTrimmed>
+    <TrimMode>copyused</TrimMode>
+	<RunAOTCompilation>false</RunAOTCompilation>
+	<WindowsPackageType>None</WindowsPackageType>
+    <PublishSingleFile>false</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>-->
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ApplicationId>com.tokisaki.callrecscribe</ApplicationId>
