@@ -172,34 +172,31 @@ namespace CallREC_Scribe.ViewModels
                 return;
             }
 
-            await Task.Run(async () =>
+            foreach (var file in selectedFiles)
             {
-                foreach (var file in selectedFiles)
+                var result = await Task.Run(async () => await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey, newProgress =>
                 {
-                    var result = await Task.Run(async () => await _asrService.TranscribeAsync(file.FilePath, secretId, secretKey, newProgress =>
+                    // 进度更新需要回到UI线程
+                    MainThread.BeginInvokeOnMainThread(() =>
                     {
-                        // 进度更新需要回到UI线程
-                        MainThread.BeginInvokeOnMainThread(() =>
-                        {
-                            CurrentTaskDescription = $"正在处理: {Path.GetFileName(file.FilePath)}\n{newProgress}";
-                        });
-                    }));
-
-                    // 当单个文件处理完成后，回到UI线程更新列表项和数据库
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
-                    {
-                        file.TranscriptionPreview = result;
-                        await _dbService.SaveRecordingAsync(file);
+                        CurrentTaskDescription = $"正在处理: {Path.GetFileName(file.FilePath)}\n{newProgress}";
                     });
-                }
+                }));
 
-                // 所有任务完成后，在UI线程上重置状态并显示提示
-                MainThread.BeginInvokeOnMainThread(async () =>
+                // 当单个文件处理完成后，回到UI线程更新列表项和数据库
+                await MainThread.InvokeOnMainThreadAsync(async () =>
                 {
-                    IsBusy = false;
-                    CurrentTaskDescription = string.Empty;
-                    await App.Current.MainPage.DisplayAlert("完成", "选定文件的转译已完成。", "好的");
+                    file.TranscriptionPreview = result;
+                    await _dbService.SaveRecordingAsync(file);
                 });
+            }
+
+            // 所有任务完成后，在UI线程上重置状态并显示提示
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                IsBusy = false;
+                CurrentTaskDescription = string.Empty;
+                await App.Current.MainPage.DisplayAlert("完成", "选定文件的转译已完成。", "好的");
             });
         }
 
