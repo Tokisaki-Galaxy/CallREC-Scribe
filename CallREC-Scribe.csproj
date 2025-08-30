@@ -39,6 +39,8 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0-android|AnyCPU'">
+      <PublishTrimmed>true</PublishTrimmed>
+      <TrimMode>link</TrimMode>
 	  <AndroidPackageFormat>apk</AndroidPackageFormat>
 	  <ApplicationId>com.tokisaki.callrecscribe</ApplicationId>
 	</PropertyGroup>
@@ -68,6 +70,8 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0-windows10.0.19041.0|AnyCPU'">
+	  <PublishTrimmed>true</PublishTrimmed>
+      <TrimMode>link</TrimMode>
 	  <ApplicationId>com.tokisaki.callrecscribe</ApplicationId>
 	</PropertyGroup>
 
