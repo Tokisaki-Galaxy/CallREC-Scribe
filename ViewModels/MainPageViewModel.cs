@@ -66,6 +66,43 @@ namespace CallREC_Scribe.ViewModels
 #if ANDROID
             try
             {
+                    // --- 权限请求 ---
+        // 1. 检查当前安卓版本是否需要特殊处理
+        if (Android.OS.Build.VERSION.SdkInt >= Android.OS.BuildVersionCodes.R) // Android 11 (API 30) 及以上
+        {
+            // 2. 检查当前是否已经获得了所有文件访问权限
+            if (!Android.OS.Environment.IsExternalStorageManager)
+            {
+                // 3. 如果尚未获得权限，则引导用户到设置页面手动授权
+                await App.Current.MainPage.DisplayAlert("需要权限", "由于录音文件不在常规媒体的存储路径。为了选择录音文件夹，应用需要访问所有文件的权限。即将跳转到设置页面。", "好的");
+
+                var intenta = new Android.Content.Intent(Android.Provider.Settings.ActionManageAppAllFilesAccessPermission);
+                var uri = Android.Net.Uri.FromParts("package", AppInfo.PackageName, null);
+                intenta.SetData(uri);
+                // 必须使用 CurrentActivity
+                Platform.CurrentActivity.StartActivity(intenta);
+
+                // 此处不直接等待结果，因为用户需要手动操作后返回应用。
+                // 最好在页面的 OnAppearing 或其他适当的时机再次检查权限。
+                return;
+            }
+        }
+        else 
+        {
+            // 对于 Android 10 及以下版本，使用旧的存储权限
+            var status = await Permissions.CheckStatusAsync<Permissions.StorageRead>();
+            if (status != PermissionStatus.Granted)
+            {
+                status = await Permissions.RequestAsync<Permissions.StorageRead>();
+            }
+
+            if (status != PermissionStatus.Granted)
+            {
+                await App.Current.MainPage.DisplayAlert("权限不足", "需要存储读取权限才能选择录音文件夹。", "好的");
+                return;
+            }
+        }
+
                 // 1. 创建一个 Intent 来请求打开文件夹选择器
                 var intent = new Intent(Intent.ActionOpenDocumentTree);
 
