@@ -54,6 +54,13 @@
 3.  选择目标平台（例如 `net8.0-android` 或 `net8.0-windows...`）。
 4.  点击运行按钮进行部署和调试。
 
+### 分发程序
+
+```bash
+dotnet publish -f:net8.0-android -c:Release
+dotnet publish -f:net8.0-windows10.0.19041.0 -c:Release
+```
+
 ## ⚙️ 应用配置
 
 在开始使用前，您需要进行简单的配置：
@@ -99,7 +106,7 @@
 
 在 Android 平台进行调试时，附加的调试器可能会干扰某些原生回调的执行。如果遇到程序卡住的情况，建议断开调试器，通过 `logcat` 查看实时日志：
 
-```sh
+```bash
 adb logcat -s "com.tokisaki.CallREC_Scribe"
 ```
 
