@@ -4,9 +4,10 @@
              xmlns:viewmodels="clr-namespace:CallREC_Scribe.ViewModels"
              xmlns:models="clr-namespace:CallREC_Scribe.Models"
              xmlns:converters="clr-namespace:CallREC_Scribe.Converters"
+             xmlns:strings="clr-namespace:CallREC_Scribe.Resources.Strings"
              x:DataType="viewmodels:MainPageViewModel"
              x:Class="CallREC_Scribe.MainPage"
-             Title="通话录音转录工具">
+             Title="{x:Static strings:AppResources.AppName}">
 
     <ContentPage.Resources>
         <converters:TranscriptionStatusConverter x:Key="TranscriptionStatusConv" />
@@ -16,8 +17,8 @@
 
         <!-- 语音识别配置按钮 -->
         <HorizontalStackLayout Grid.Row="0" Spacing="10">
-            <Button Text="语音识别配置" Command="{Binding ConfigureApiCommand}" HorizontalOptions="FillAndExpand"/>
-            <Button Text="文件名解析配置" Command="{Binding ConfigureParsingCommand}" HorizontalOptions="FillAndExpand"/>
+            <Button Text="{x:Static strings:AppResources.ConfigureApi}" Command="{Binding ConfigureApiCommand}" HorizontalOptions="FillAndExpand"/>
+            <Button Text="{x:Static strings:AppResources.ConfigureParsing}" Command="{Binding ConfigureParsingCommand}" HorizontalOptions="FillAndExpand"/>
             <!--<Button Text="Test FFmpeg Callback" Command="{Binding TestFFmpegCommand}" HorizontalOptions="FillAndExpand"/>-->
         </HorizontalStackLayout>
 
@@ -26,16 +27,16 @@
             <Frame Padding="10,0" CornerRadius="5" BorderColor="LightGray">
                 <Label Text="{Binding RecordingsFolder}" VerticalOptions="Center"/>
             </Frame>
-            <Button Grid.Column="1" Text="浏览..." Command="{Binding BrowseFolderCommand}"/>
+            <Button Grid.Column="1" Text="{x:Static strings:AppResources.Browse}" Command="{Binding BrowseFolderCommand}"/>
         </Grid>
 
         <!-- 转译和选择按钮 -->
         <HorizontalStackLayout Grid.Row="2" Spacing="10">
-            <Button Text="转译选中" Command="{Binding TranscribeSelectedCommand}" HorizontalOptions="FillAndExpand" />
-            <Button Text="全选" Command="{Binding SelectAllCommand}" />
-            <Button Text="反选" Command="{Binding InvertSelectionCommand}" />
-            <Button Text="导出" Command="{Binding ExportCommand}" />
-            <Button Text="删除" Command="{Binding DeleteSelectedCommand}" BackgroundColor="Red" TextColor="White"/>
+            <Button Text="{x:Static strings:AppResources.TranscribeSelected}" Command="{Binding TranscribeSelectedCommand}" HorizontalOptions="FillAndExpand" />
+            <Button Text="{x:Static strings:AppResources.SelectAll}" Command="{Binding SelectAllCommand}" />
+            <Button Text="{x:Static strings:AppResources.InvertSelection}" Command="{Binding InvertSelectionCommand}" />
+            <Button Text="{x:Static strings:AppResources.Export}" Command="{Binding ExportCommand}" />
+            <Button Text="{x:Static strings:AppResources.DeleteSelected}" Command="{Binding DeleteSelectedCommand}" BackgroundColor="Red" TextColor="White"/>
         </HorizontalStackLayout>
 
         <!-- 录音文件表格 -->
@@ -43,9 +44,9 @@
                         SelectionMode="None">
             <CollectionView.Header>
                 <Grid ColumnDefinitions="Auto, *, *, *" Padding="5, 10" BackgroundColor="LightGray">
-                    <Label Grid.Column="1" Text="日期" FontAttributes="Bold"/>
-                    <Label Grid.Column="2" Text="手机号" FontAttributes="Bold"/>
-                    <Label Grid.Column="3" Text="转录预览" FontAttributes="Bold"/>
+                    <Label Grid.Column="1" Text="{x:Static strings:AppResources.Header_Date}" FontAttributes="Bold"/>
+                    <Label Grid.Column="2" Text="{x:Static strings:AppResources.Header_PhoneNumber}" FontAttributes="Bold"/>
+                    <Label Grid.Column="3" Text="{x:Static strings:AppResources.Header_TranscriptionPreview}" FontAttributes="Bold"/>
                 </Grid>
             </CollectionView.Header>
             <CollectionView.ItemTemplate>

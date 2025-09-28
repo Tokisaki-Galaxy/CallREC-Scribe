@@ -13,6 +13,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices.Marshalling;
 using System.Diagnostics;
+using CallREC_Scribe.Resources.Strings;
 
 
 #if ANDROID
@@ -53,7 +54,7 @@ namespace CallREC_Scribe.ViewModels
             _exportService = exportService;
 
             // 从本地配置加载保存的路径和API密钥
-            RecordingsFolder = Preferences.Get("RecordingsFolder", "请选择文件夹...");
+            RecordingsFolder = Preferences.Get("RecordingsFolder", AppResources.SelectFolderPrompt);
         }
         public async Task InitializeAsync()
         {
@@ -154,7 +155,7 @@ namespace CallREC_Scribe.ViewModels
     }
     catch (Exception ex)
     {
-        await App.Current.MainPage.DisplayAlert("错误", $"选择文件夹失败: {ex.Message}", "好的");
+        await App.Current.MainPage.DisplayAlert(AppResources.Error, $"{AppResources.FolderSelectionFailed}: {ex.Message}", AppResources.OK);
     }
 #endif
         }
